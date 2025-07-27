@@ -33,7 +33,7 @@ API_BASE_URL = "https://lighthorse.duckdns.org"
 @st.cache_data(ttl=3600)
 def fetch_stock_list_from_api():
     """API 서버로부터 분석 가능한 전체 주식 목록을 가져옵니다."""
-    api_url = f"{API_BASE_URL}/os/stocks"
+    api_url = f"{API_BASE_URL}/demand/stocks"
     try:
         response = requests.get(api_url, timeout=10)
         response.raise_for_status()
@@ -45,7 +45,7 @@ def fetch_stock_list_from_api():
 @st.cache_data(ttl=600)
 def fetch_data_from_api(stock_code):
     """API 서버로부터 특정 종목의 상세 시계열 데이터를 가져옵니다."""
-    api_url = f"{API_BASE_URL}/os/stock/{stock_code}"
+    api_url = f"{API_BASE_URL}/demand/stock/{stock_code}"
     try:
         response = requests.get(api_url, timeout=10)
         response.raise_for_status()
