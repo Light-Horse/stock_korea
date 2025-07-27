@@ -3,3 +3,4 @@ pandas
 matplotlib
 pykrx==1.0.51
 requests
+os
