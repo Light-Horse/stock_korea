@@ -108,7 +108,12 @@ st.title("📈 MACD 계산 방식 비교 분석기")
 
 stock_list = fetch_stock_list_from_api()
 
-if stock_list:
+
+# 기존 코드
+# if stock_list:
+
+# 가장 안전하게 수정한 코드
+if stock_list is not None and not stock_list.empty:
     stock_names = [s['name'] for s in stock_list]
     selected_name = st.selectbox(
         '종목을 검색하거나 선택하세요:',
