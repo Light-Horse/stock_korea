@@ -31,14 +31,12 @@ def fetch_stock_data(api_path):
 def style_wide_format_by_rank_change(df):
     """
     와이드 포맷 데이터프레임의 순위 변화에 따라 스타일을 적용합니다.
-    df는 'Date' 컬럼이 datetime 객체인 원본이어야 합니다.
     """
     if 'Date' not in df.columns or len(df) < 2:
         return pd.DataFrame('', index=df.index, columns=df.columns)
 
     stock_to_rank_map = {}
     for idx, row in df.iterrows():
-        # 원인 분석에서 확인된 부분: 여기서 row['Date']는 datetime 객체여야 합니다.
         date_str = row['Date'].strftime('%Y-%m-%d')
         stock_to_rank_map[date_str] = {}
         for col in df.columns:
@@ -109,10 +107,17 @@ if not data_raw.empty:
     st.subheader(f"데이터 조회: {analysis_type}")
 
     if analysis_type == "모멘텀 스코어" and 'Date' in data_raw.columns:
-        # 💡 해결책: 스타일은 원본 데이터(data_raw)로 적용하고,
-        # 화면 표시용 날짜 형식은 .format()으로 지정합니다.
-        styled_df = data_raw.style.apply(style_wide_format_by_rank_change, axis=None).format(
-            {'Date': lambda x: x.strftime('%m-%d')}
+        # 스타일은 원본 데이터로 적용하고, 화면 표시용 날짜 형식은 .format()으로 지정
+        styled_df = (
+            data_raw.style.apply(style_wide_format_by_rank_change, axis=None)
+            .format({'Date': lambda x: x.strftime('%m-%d')})
+            # 💡 이 부분이 추가되었습니다!
+            .set_table_styles([
+                {
+                    'selector': 'td:hover',
+                    'props': [('border', '2.5px solid #FF6347')] # 토마토 색상 테두리
+                }
+            ])
         )
 
         st.dataframe(
