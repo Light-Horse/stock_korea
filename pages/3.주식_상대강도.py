@@ -16,7 +16,6 @@ def fetch_stock_data(api_path):
         response.raise_for_status()
         df = pd.DataFrame(response.json())
         
-        # '모멘텀 스코어' 데이터일 경우, 날짜를 기준으로 정렬
         if 'Date' in df.columns:
             df['Date'] = pd.to_datetime(df['Date'])
             df = df.sort_values(by='Date', ascending=False).reset_index(drop=True)
@@ -32,13 +31,14 @@ def fetch_stock_data(api_path):
 def style_wide_format_by_rank_change(df):
     """
     와이드 포맷 데이터프레임의 순위 변화에 따라 스타일을 적용합니다.
+    df는 'Date' 컬럼이 datetime 객체인 원본이어야 합니다.
     """
     if 'Date' not in df.columns or len(df) < 2:
         return pd.DataFrame('', index=df.index, columns=df.columns)
 
-    # 1. (날짜, 종목명) -> 순위 조회를 위한 맵 생성
     stock_to_rank_map = {}
     for idx, row in df.iterrows():
+        # 원인 분석에서 확인된 부분: 여기서 row['Date']는 datetime 객체여야 합니다.
         date_str = row['Date'].strftime('%Y-%m-%d')
         stock_to_rank_map[date_str] = {}
         for col in df.columns:
@@ -51,10 +51,8 @@ def style_wide_format_by_rank_change(df):
                 except (ValueError, IndexError):
                     continue
 
-    # 2. 스타일을 적용할 비어있는 데이터프레임 생성
     styler_df = pd.DataFrame('', index=df.index, columns=df.columns)
     
-    # 3. 최신 날짜부터 역으로 순회하며 전날과 비교
     for idx in range(len(df) - 1):
         current_row = df.iloc[idx]
         previous_row = df.iloc[idx + 1]
@@ -75,14 +73,14 @@ def style_wide_format_by_rank_change(df):
             previous_rank = previous_ranks.get(current_stock)
             
             color = ''
-            if previous_rank is None: # 신규 진입
+            if previous_rank is None:
                 color = 'rgba(40, 167, 69, 0.4)' # Green
             else:
                 change = previous_rank - current_rank
-                if change > 0: # 순위 상승
+                if change > 0:
                     alpha = min(0.3 + (change / 10) * 0.5, 0.8)
                     color = f'rgba(220, 53, 69, {alpha})' # Red
-                elif change < 0: # 순위 하락
+                elif change < 0:
                     alpha = min(0.3 + (abs(change) / 10) * 0.5, 0.8)
                     color = f'rgba(0, 123, 255, {alpha})' # Blue
             
@@ -111,18 +109,19 @@ if not data_raw.empty:
     st.subheader(f"데이터 조회: {analysis_type}")
 
     if analysis_type == "모멘텀 스코어" and 'Date' in data_raw.columns:
-        # 화면 표시용 데이터 복사 및 날짜 형식 변경
-        display_data = data_raw.copy()
-        display_data['Date'] = display_data['Date'].dt.strftime('%m-%d')
+        # 💡 해결책: 스타일은 원본 데이터(data_raw)로 적용하고,
+        # 화면 표시용 날짜 형식은 .format()으로 지정합니다.
+        styled_df = data_raw.style.apply(style_wide_format_by_rank_change, axis=None).format(
+            {'Date': lambda x: x.strftime('%m-%d')}
+        )
 
-        # 데이터프레임에 스타일 적용하여 표시
         st.dataframe(
-            display_data.style.apply(style_wide_format_by_rank_change, axis=None),
+            styled_df,
             use_container_width=True,
             height=500,
             hide_index=True
         )
-    else: # "맨스필드 RS" 또는 형식에 맞지 않는 데이터
+    else:
         st.dataframe(data_raw, use_container_width=True, height=500, hide_index=True)
 else:
     st.info("데이터가 없습니다.")
