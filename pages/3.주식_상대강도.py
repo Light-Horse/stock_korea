@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-from functools import partial
 
 # --- CONFIG ---
 st.set_page_config(page_title="개별 주식 상대강도(RS) 분석", page_icon="📊", layout="wide")
@@ -31,54 +30,65 @@ def fetch_stock_data(api_path):
 
 def style_wide_format(df, highlight_stock=None):
     """
-    와이드 포맷 데이터프레임에 순위 변화 및 선택 종목 하이라이트 스타일을 적용합니다.
+    와이드 포맷 데이터프레임에 순위 변화(배경색) 및 선택 종목(테두리) 스타일을 통합하여 적용합니다.
     """
-    # 1. 순위 변화에 따른 배경색 스타일링
-    rank_change_styler = pd.DataFrame('', index=df.index, columns=df.columns)
-    if 'Date' in df.columns and len(df) >= 2:
-        stock_to_rank_map = {}
+    if 'Date' not in df.columns:
+        return pd.DataFrame('', index=df.index, columns=df.columns)
+
+    # 1. 순위 조회를 위한 맵 생성
+    stock_to_rank_map = {}
+    if len(df) >= 2:
         for idx, row in df.iterrows():
             date_str = row['Date'].strftime('%Y-%m-%d')
             stock_to_rank_map[date_str] = {}
             for col in df.columns:
-                if col.startswith('Top'):
-                    rank = int(col.split(' ')[1])
+                if str(col).startswith('Top'):
+                    rank = int(str(col).split(' ')[1])
                     stock_name = row[col]
                     if pd.notna(stock_name):
                         stock_to_rank_map[date_str][stock_name] = rank
-        
-        for idx in range(len(df) - 1):
-            current_row = df.iloc[idx]
-            previous_row = df.iloc[idx + 1]
-            previous_ranks = stock_to_rank_map.get(previous_row['Date'].strftime('%Y-%m-%d'), {})
-            for col in df.columns:
-                if not col.startswith('Top'): continue
-                current_rank = int(col.split(' ')[1])
-                current_stock = current_row[col]
-                if pd.isna(current_stock): continue
-                
+
+    # 2. 각 셀의 최종 스타일을 저장할 데이터프레임 생성
+    styler_df = pd.DataFrame('', index=df.index, columns=df.columns)
+
+    # 3. 각 셀을 순회하며 스타일을 한 번에 결정
+    for idx, row in df.iterrows():
+        for col_name, current_stock in row.items():
+            if not str(col_name).startswith('Top') or pd.isna(current_stock):
+                continue
+
+            styles = []
+            
+            # 스타일 규칙 1: 배경색 (순위 변화)
+            if idx < len(df) - 1:
+                previous_row = df.iloc[idx + 1]
+                previous_ranks = stock_to_rank_map.get(previous_row['Date'].strftime('%Y-%m-%d'), {})
                 previous_rank = previous_ranks.get(current_stock)
-                color = ''
-                if previous_rank is None:
-                    color = 'background-color: rgba(40, 167, 69, 0.4)' # Green
+                current_rank = int(str(col_name).split(' ')[1])
+                
+                bg_color = ''
+                if previous_rank is None: # 신규
+                    bg_color = 'background-color: rgba(40, 167, 69, 0.4)'
                 else:
                     change = previous_rank - current_rank
-                    if change > 0:
+                    if change > 0: # 상승
                         alpha = min(0.3 + (change / 10) * 0.5, 0.8)
-                        color = f'background-color: rgba(220, 53, 69, {alpha})' # Red
-                    elif change < 0:
+                        bg_color = f'background-color: rgba(220, 53, 69, {alpha})'
+                    elif change < 0: # 하락
                         alpha = min(0.3 + (abs(change) / 10) * 0.5, 0.8)
-                        color = f'background-color: rgba(0, 123, 255, {alpha})' # Blue
-                if color:
-                    rank_change_styler.at[idx, col] = color
+                        bg_color = f'background-color: rgba(0, 123, 255, {alpha})'
+                if bg_color:
+                    styles.append(bg_color)
 
-    # 2. 선택된 종목에 대한 테두리 스타일링
-    if highlight_stock:
-        border_style = 'border: 2.5px solid #FF6347 !important;'
-        # 배경색 스타일과 테두리 스타일을 결합
-        return rank_change_styler.apply(lambda s: s.where(df != highlight_stock, s + border_style))
+            # 스타일 규칙 2: 테두리 (종목 강조)
+            if highlight_stock and current_stock == highlight_stock:
+                styles.append('border: 2.5px solid #FF6347 !important')
+
+            # 최종 스타일 적용
+            if styles:
+                styler_df.at[idx, col_name] = '; '.join(styles)
     
-    return rank_change_styler
+    return styler_df
 
 # --- UI & LOGIC ---
 st.title("📊 개별 주식 상대강도(RS) 분석")
@@ -101,8 +111,7 @@ if not data_raw.empty:
 
     if analysis_type == "모멘텀 스코어" and 'Date' in data_raw.columns:
         
-        # 💡 1. 강조할 종목을 선택하는 위젯 추가
-        stock_columns = [col for col in data_raw.columns if col.startswith('Top')]
+        stock_columns = [col for col in data_raw.columns if str(col).startswith('Top')]
         unique_stocks = pd.unique(data_raw[stock_columns].values.ravel('K'))
         unique_stocks = sorted([stock for stock in unique_stocks if pd.notna(stock)])
         
@@ -114,7 +123,6 @@ if not data_raw.empty:
         
         highlight_target = selected_stock if selected_stock != '전체 보기' else None
 
-        # 💡 2. 스타일 함수에 선택된 종목 정보 전달
         styled_df = (
             data_raw.style.apply(style_wide_format, highlight_stock=highlight_target, axis=None)
             .format({'Date': lambda x: x.strftime('%m-%d')})
