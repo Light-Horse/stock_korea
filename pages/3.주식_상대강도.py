@@ -102,40 +102,45 @@ data = fetch_stock_data(api_map[analysis_type])
 
 # --- DISPLAY DATA ---
 if not data.empty:
-    st.subheader(f"데이터 조회: {analysis_type} (Top 20)")
+    st.subheader(f"데이터 조회: {analysis_type}")
 
     # 모멘텀 스코어에만 순위 변화 적용
     if analysis_type == "모멘텀 스코어":
-        # 순위 계산 및 변화 추적
-        data['순위'] = data.groupby('date').cumcount() + 1
-        data_with_change = get_rank_change(data)
-        
-        # 최신 날짜의 Top 20 데이터만 필터링
-        latest_date = data_with_change['date'].max()
-        top20_data = data_with_change[data_with_change['date'] == latest_date].head(20)
-
-        # 불필요한 컬럼 숨기기
-        display_cols = ['순위', 'rank_change', 'date', '종목명', '종목코드', '현재가', '등락률', '시가총액', '모멘텀스코어']
-        
-        # 'rank_change_value'가 있는 경우에만 스타일 적용
-        if 'rank_change_value' in top20_data.columns:
-            # 순서 변경 및 rank_change_value 컬럼 제거
-            top20_display = top20_data[display_cols].rename(columns={'rank_change': '순위변동'})
+        # 💡 해결책: 'date' 컬럼이 있는지 먼저 확인합니다.
+        if 'date' in data.columns and not data['date'].empty:
+            st.markdown("##### 📈 Top 20 순위 변화")
+            # 순위 계산 및 변화 추적
+            data['순위'] = data.groupby('date').cumcount() + 1
+            data_with_change = get_rank_change(data)
             
-            st.dataframe(
-                top20_display.style.apply(style_rank_change, axis=1),
-                use_container_width=True,
-                height=735,
-                hide_index=True
-            )
-        else:
-            st.dataframe(top20_data, use_container_width=True, height=735, hide_index=True)
+            # 최신 날짜의 Top 20 데이터만 필터링
+            latest_date = data_with_change['date'].max()
+            top20_data = data_with_change[data_with_change['date'] == latest_date].head(20)
 
-    else: # 맨스필드 RS 또는 검색 결과는 기본 테이블로 표시
+            # 표시할 컬럼 정의
+            display_cols = ['순위', 'rank_change', 'date', '종목명', '종목코드', '현재가', '등락률', '시가총액', '모멘텀스코어']
+            
+            if 'rank_change_value' in top20_data.columns:
+                top20_display = top20_data[display_cols].rename(columns={'rank_change': '순위변동'})
+                
+                st.dataframe(
+                    top20_display.style.apply(style_rank_change, axis=1),
+                    use_container_width=True,
+                    height=735,
+                    hide_index=True
+                )
+            else:
+                st.dataframe(top20_data, use_container_width=True, height=735, hide_index=True)
+        else:
+            # 'date' 컬럼이 없는 경우, 순위 계산 없이 원본 데이터를 표시
+            st.warning("⚠️ 순위 정보를 계산하는 데 필요한 'date' 컬럼이 데이터에 없습니다. 원본 데이터를 표시합니다.")
+            st.dataframe(data, use_container_width=True, height=500, hide_index=True)
+
+    else: # 맨스필드 RS는 기본 테이블로 표시
          st.dataframe(data, use_container_width=True, height=500, hide_index=True)
 
     # 전체 데이터 검색 기능
-    with st.expander("전체 데이터 검색"):
+    with st.expander("🔍 전체 데이터 검색"):
         search_term = st.text_input("종목명으로 검색:", placeholder="예: 삼성전자")
         if search_term:
             if '종목명' in data.columns:
