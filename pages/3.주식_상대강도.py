@@ -118,4 +118,11 @@ if not data_raw.empty:
         # 데이터프레임에 스타일 적용하여 표시
         st.dataframe(
             display_data.style.apply(style_wide_format_by_rank_change, axis=None),
-            use_container_width
+            use_container_width=True,
+            height=500,
+            hide_index=True
+        )
+    else: # "맨스필드 RS" 또는 형식에 맞지 않는 데이터
+        st.dataframe(data_raw, use_container_width=True, height=500, hide_index=True)
+else:
+    st.info("데이터가 없습니다.")
